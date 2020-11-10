@@ -1,0 +1,371 @@
+Description: Creates VPC and required components of VPC
+
+Parameters:
+  VPCCIDR:
+    Type: String
+    Description: CIDR block should be used to create the VPC (e.g. 172.21.1.0/24)
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{2})"
+    Default: 10.100.0.0/16
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x. (e.g. 172.21.1.0/24)
+  PublicSubnet1:
+    Type: String
+    Description: CIDR block should be used to create the public subnet in AZ1 (e.g. 172.21.1.0/26)
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{2})"
+    Default: 10.100.0.0/24
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x. (e.g. 172.21.1.0/26)
+  PublicSubnet2:
+    Type: String
+    Description: CIDR block should be used to create the public subnet in AZ1 (e.g. 172.21.1.64/26)
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{2})"
+    Default: 10.100.1.0/24
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x. (e.g. 172.21.1.64/26)
+  PrivateSubnet1:
+    Type: String
+    Description: CIDR block should be used to create the public subnet in AZ1 (e.g. 172.21.1.128/26)
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{2})"
+    Default: 10.100.2.0/24
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x. (e.g. 172.21.1.128/26)
+  PrivateSubnet2:
+    Type: String
+    Description: CIDR block should be used to create the public subnet in AZ1 (e.g. 172.21.1.192/26)
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{2})"
+    Default: 10.100.3.0/24
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x. (e.g. 172.21.1.192/26)
+  CSRAMIid:
+    Type: String
+    Description: AMI ID to be used for Bastion Host
+    Default: ami-0126515024e181b2e
+  CSRSSHKey:
+    Type: String
+    Description: SSH key to be used to login to Bastion Host
+    Default: BBBlog
+  CSRBGPASN:
+    Type: String
+    Description: BGP ASN of CSR instance simulating remote site
+    Default: 65000
+  TagPrefix:
+    Type: String
+    Description: Enter Prefix that should be used for Tags.
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock:
+        Ref: VPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value:
+            Ref: TagPrefix
+  CSRSG:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupDescription: Allow ssh and VPC to CSR host
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: 50
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 500
+        ToPort: 500
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 4500
+        ToPort: 4500
+        CidrIp: 0.0.0.0/0
+        
+  PubSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock:
+        Ref: PublicSubnet1
+      AvailabilityZone:
+        Fn::Sub: ${AWS::Region}a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PublicSubnet1
+
+  PubSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock:
+        Ref: PublicSubnet2
+      AvailabilityZone:
+        Fn::Sub: ${AWS::Region}b
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PublicSubnet2
+
+  PriSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock:
+        Ref: PrivateSubnet1
+      AvailabilityZone:
+        Fn::Sub: ${AWS::Region}a
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PrivateSubnet1
+
+  PriSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock:
+        Ref: PrivateSubnet2
+      AvailabilityZone:
+        Fn::Sub: ${AWS::Region}b
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PrivateSubnet2
+
+  CSREC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: CSRSG
+    Properties:
+      ImageId: !Ref CSRAMIid
+      InstanceType: t3.medium
+      KeyName: !Ref CSRSSHKey
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: [ !Ref CSRSG ]
+          SubnetId: !Ref PubSubnet1
+      Tags:
+        - Key: Name
+          Value: CSR
+  CSREIP:
+    Type: AWS::EC2::EIP
+    DependsOn: CSREC2Instance
+    Properties:
+      InstanceId: !Ref CSREC2Instance
+  
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-IGW
+
+  GatewayToInternet:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+
+  NATEIP1:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+    DependsOn: GatewayToInternet
+
+  NAT1:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId:
+        Fn::GetAtt: [ NATEIP1, AllocationId ]
+      SubnetId:
+        Ref: PubSubnet1
+        
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PublicRouteTable
+
+  PrivateRouteTable1:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PrivateRouteTable1
+
+  PrivateRouteTable2:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${TagPrefix}-PrivateRouteTable2
+
+  PublicRouteInternal:
+    Type: "AWS::EC2::Route"
+    DependsOn: CSREC2Instance
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      InstanceId:
+        Ref: CSREC2Instance
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: GatewayToInternet
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PrivateRoute1Internal:
+    Type: "AWS::EC2::Route"
+    DependsOn: CSREC2Instance
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      InstanceId:
+        Ref: CSREC2Instance
+      RouteTableId:
+        Ref: PrivateRouteTable1
+
+  PrivateRoute1:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT1
+      RouteTableId:
+        Ref: PrivateRouteTable1
+
+  PrivateRoute2Internal:
+    Type: "AWS::EC2::Route"
+    DependsOn: CSREC2Instance
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      InstanceId:
+        Ref: CSREC2Instance
+      RouteTableId:
+        Ref: PrivateRouteTable2
+
+  PrivateRoute2:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT1
+      RouteTableId:
+        Ref: PrivateRouteTable2
+
+  PubSubnet1RTAssoc:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PubSubnet1
+
+  PubSubnet2RTAssoc:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PubSubnet2
+
+  PrivSubnet1RTAssoc:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable1
+      SubnetId:
+        Ref: PriSubnet1
+
+  PrivSubnet2RTAssoc:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable2
+      SubnetId:
+        Ref: PriSubnet2
+  CSRCustomerGateway: 
+    Type: AWS::EC2::CustomerGateway
+    DependsOn: CSREIP
+    Properties: 
+        Type: ipsec.1
+        BgpAsn: !Ref CSRBGPASN
+        IpAddress: !Ref CSREIP
+        
+Outputs:
+  VPCID:
+    Description: "VPC ID"
+    Value:
+      Ref: VPC
+  PrivateSubnet1:
+    Description: "Subnet ID of private subnet in AZ1"
+    Value:
+      Ref: PriSubnet1
+  PrivateSubnet2:
+    Description: "Subnet ID of private subnet in AZ2"
+    Value:
+      Ref: PriSubnet2
+  PublicSubnet1:
+    Description: "Subnet ID of public subnet in AZ1"
+    Value:
+      Ref: PubSubnet1
+  PublicSubnet2:
+    Description: "Subnet ID of public subnet in AZ2"
+    Value:
+      Ref: PubSubnet2
+  PublicRouteTable:
+    Description: "Route table for public subnet"
+    Value:
+      Ref: PublicRouteTable
+  PrivateRouteTable1:
+    Description: "Rote table for provate subnet 1"
+    Value:
+      Ref: PrivateRouteTable1
+  PrivateRouteTable2:
+    Description: "Rote table for provate subnet 2"
+    Value:
+      Ref: PrivateRouteTable2
+  CSRCustomerGateway: 
+    Description: "CSR CGW"
+    Value:
+      Ref: CSRCustomerGateway
+  CSRBGPASN: 
+    Description: "CSR BGP ASN"
+    Value:
+      Ref: CSRBGPASN
+  CSREIP: 
+    Description: "CSR Public IP"
+    Value:
+      Ref: CSREIP

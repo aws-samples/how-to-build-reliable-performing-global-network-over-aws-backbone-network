@@ -1,0 +1,95 @@
+conf t
+crypto keyring keyring-vpn-0912e867cd0e234b4-0
+  local-address 10.0.16.150
+  pre-shared-key address 75.2.95.139 key BBBlogPreSharedKey1
+exit
+crypto keyring keyring-vpn-0912e867cd0e234b4-1
+  local-address 10.0.16.150
+  pre-shared-key address 99.83.192.51 key BBBlogPreSharedKey2
+exit
+!
+crypto isakmp policy 200
+ encr aes 256
+ hash sha256
+ authentication pre-share
+ group 2
+ lifetime 28800
+exit
+!
+crypto isakmp policy 201
+ encr aes 256
+ hash sha256
+ authentication pre-share
+ group 2
+ lifetime 28800
+exit
+crypto isakmp keepalive 10 10
+crypto isakmp profile isakmp-vpn-0912e867cd0e234b4-0
+   keyring keyring-vpn-0912e867cd0e234b4-0
+   match identity address 75.2.95.139 255.255.255.255 
+   local-address 10.0.16.150
+exit
+crypto isakmp profile isakmp-vpn-0912e867cd0e234b4-1
+   keyring keyring-vpn-0912e867cd0e234b4-1
+   match identity address 99.83.192.51 255.255.255.255 
+   local-address 10.0.16.150
+exit
+!
+crypto ipsec security-association replay window-size 128
+!
+crypto ipsec transform-set ipsec-prop-vpn-0912e867cd0e234b4-0 esp-aes 256 esp-sha256-hmac 
+ mode tunnel
+exit
+crypto ipsec transform-set ipsec-prop-vpn-0912e867cd0e234b4-1 esp-aes 256 esp-sha256-hmac 
+ mode tunnel
+exit
+crypto ipsec df-bit clear
+!
+crypto ipsec profile ipsec-vpn-0912e867cd0e234b4-0
+ set transform-set ipsec-prop-vpn-0912e867cd0e234b4-0 
+ set pfs group2
+exit
+!
+crypto ipsec profile ipsec-vpn-0912e867cd0e234b4-1
+ set transform-set ipsec-prop-vpn-0912e867cd0e234b4-1 
+ set pfs group2
+!
+interface Tunnel1
+ ip address 169.254.10.2 255.255.255.252
+ ip tcp adjust-mss 1379
+ tunnel source 10.0.16.150
+ tunnel mode ipsec ipv4
+ tunnel destination 75.2.95.139
+ tunnel protection ipsec profile ipsec-vpn-0912e867cd0e234b4-0
+ ip virtual-reassembly
+exit
+!
+interface Tunnel2
+ ip address 169.254.10.6 255.255.255.252
+ ip tcp adjust-mss 1379
+ tunnel source 10.0.16.150
+ tunnel mode ipsec ipv4
+ tunnel destination 99.83.192.51
+ tunnel protection ipsec profile ipsec-vpn-0912e867cd0e234b4-1
+ ip virtual-reassembly
+exit
+!
+router bgp 65000
+ bgp log-neighbor-changes
+ neighbor 169.254.10.1 remote-as 64512
+ neighbor 169.254.10.1 timers 10 30 30
+ neighbor 169.254.10.5 remote-as 64512
+ neighbor 169.254.10.5 timers 10 30 30
+ !
+ address-family ipv4
+  network 10.0.16.0 mask 255.255.240.0
+  network 169.254.10.0 mask 255.255.255.252
+  neighbor 169.254.10.1 activate
+  neighbor 169.254.10.1 soft-reconfiguration inbound
+  neighbor 169.254.10.5 activate
+  neighbor 169.254.10.5 soft-reconfiguration inbound
+ exit-address-family
+!
+ip route 10.0.16.0 255.255.240.0 GigabitEthernet1
+end
+write memory
