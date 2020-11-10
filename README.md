@@ -108,7 +108,7 @@ and Border Gateway Protocol (BGP) along with the following AWS services:
 -   AWS VPN connection options using third party software VPN appliance.
     I will be using [Cisco CSR 1000v
     BYOL](https://aws.amazon.com/marketplace/pp/Cisco-Systems-Inc-Cisco-Cloud-Services-Router-CSR-/B00NF48FI2)
-    from AWS Marketplace in this blog.
+    from AWS Marketplace in this walkthrough.
 
 For this walkthrough, you should have the following:
 
@@ -564,7 +564,8 @@ the same folder.
 
 ***India:***
 
-    aws cloudformation create-stack \--stack-name bbblog-CSR-ap-south-1 \
+    aws cloudformation create-stack \
+    --stack-name bbblog-CSR-ap-south-1 \
     --template-body file://remoteSiteVpccopy.yaml \
     --region ap-south-1 \
     --parameters \
@@ -610,7 +611,8 @@ found
 
 ***Ireland:***
 
-    aws cloudformation create-stack \--stack-name bbblog-CSR-eu-west-1 \
+    aws cloudformation create-stack \
+    --stack-name bbblog-CSR-eu-west-1 \
     --template-body file://remoteSiteVpc.yaml \
     --region eu-west-1 \
     --parameters \
@@ -655,7 +657,8 @@ found
 
 ***US:***
 
-    aws cloudformation create-stack \--stack-name bbblog-CSR-us-east-1 \
+    aws cloudformation create-stack \
+    --stack-name bbblog-CSR-us-east-1 \
     --template-body file://remoteSiteVpc.yaml \
     --region us-east-1 \
     --parameters \
